@@ -1,0 +1,252 @@
+diff --git a/.gitignore b/.gitignore
+index 13ad354..fdf63be 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,3 +1,18 @@
++.snap
++packages
++work
++work/*
++*/work
++*/work/*
++distfiles
++distfiles/*
++*.o
++INDEX-7
++INDEX-7.db
++INDEX-9
++INDEX-9.db
++INDEX-10
++INDEX-10.db
+ /distfiles
+ /packages
+ /*/*/work
+diff --git a/Mk/bsd.gecko.mk b/Mk/bsd.gecko.mk
+index 85ecd9d..7d62f9d 100644
+--- a/Mk/bsd.gecko.mk
++++ b/Mk/bsd.gecko.mk
+@@ -376,6 +376,23 @@ ALL_TARGET=	profiledbuild
+ MOZ_EXPORT+=MOZ_OPTIMIZE_FLAGS="-Os" MOZ_PGO_OPTIMIZE_FLAGS="${CFLAGS:M-O*}"
+ .endif
+ 
++.if ${PORT_OPTIONS:MNOCRAP}
++OPTIONS_SINGLE_AUDIO:=${OPTIONS_SINGLE_AUDIO:S/ALSA//}
++OPTIONS_SINGLE_AUDIO:=${OPTIONS_SINGLE_AUDIO:S/PULSE//}
++OPTIONS_SINGLE_AUDIO:=${OPTIONS_SINGLE_AUDIO:S/OSS//}
++OPTIONS_SINGLE:=${OPTIONS_SINGLE_AUDIO:S/AUDIO//}
++OPTIONS_SINGLE:=${OPTIONS_SINGLE:S/AUDIO//}
++PORT_OPTIONS:=${PORT_OPTIONS:S/ALSA//}
++PORT_OPTIONS:=${PORT_OPTIONS:S/PULSE//}
++PORT_OPTIONS:=${PORT_OPTIONS:S/OSS//}
++PORT_OPTIONS:=${PORT_OPTIONS:S/AUDIO//}
++MOZ_OPTIONS+=	--disable-webrtc
++MOZ_OPTIONS+=	--disable-webspeech
++MOZ_OPTIONS+=	--disable-webgl
++MOZ_OPTIONS+=	--disable-gamepad
++MOZ_OPTIONS+=	--disable-necko-wifi
++.endif
++
+ .if ${PORT_OPTIONS:MALSA}
+ LIB_DEPENDS+=	libasound.so:audio/alsa-lib
+ RUN_DEPENDS+=	${LOCALBASE}/lib/alsa-lib/libasound_module_pcm_oss.so:audio/alsa-plugins
+diff --git a/mail/thunderbird/Makefile b/mail/thunderbird/Makefile
+index 29db674..1ab0ed6 100644
+--- a/mail/thunderbird/Makefile
++++ b/mail/thunderbird/Makefile
+@@ -15,28 +15,29 @@ COMMENT=	Mozilla Thunderbird is standalone mail and news that stands above
+ BUILD_DEPENDS=	nspr>=4.12:devel/nspr \
+ 		nss>=3.21.1:security/nss \
+ 		libevent2>=2.0.21_2:devel/libevent2 \
+-		soundtouch>=1.9.0:audio/soundtouch \
+ 		harfbuzz>=1.1.0:print/harfbuzz \
+ 		graphite2>=1.3.7:graphics/graphite2 \
+ 		png>=1.6.19:graphics/png \
+-		libvorbis>=1.3.5,3:audio/libvorbis \
+-		libvpx>=1.5.0:multimedia/libvpx \
+ 		sqlite3>=3.9.1:databases/sqlite3 \
+ 		${PYTHON_PKGNAMEPREFIX}sqlite3>0:databases/py-sqlite3 \
+-		v4l_compat>0:multimedia/v4l_compat \
+ 		autoconf-2.13:devel/autoconf213 \
+ 		yasm:devel/yasm \
+ 		zip:archivers/zip \
+ 		unzip:archivers/unzip
++#		soundtouch>=1.9.0:audio/soundtouch \
++#		v4l_compat>0:multimedia/v4l_compat \
++#		libvorbis>=1.3.5,3:audio/libvorbis \
++#		libvpx>=1.5.0:multimedia/libvpx \
++#		opus>=1.1:audio/opus \
+ 
+-LIB_DEPENDS=	libv4l2.so:multimedia/libv4l
++#LIB_DEPENDS=	libv4l2.so:multimedia/libv4l
+ 
+ EM_VERSION=	1.9.1
+ L_VERSION=	4.7
+ 
+ SSP_UNSAFE=	yes
+ USE_GECKO=	gecko
+-USE_MOZILLA=	# empty
++USE_MOZILLA=	-opus -vpx -cairo -soundtouch -vorbis
+ 
+ USE_QT5=	# empty
+ QT_NONSTANDARD=	yes
+@@ -63,6 +64,7 @@ OPTIONS_SINGLE_TOOLKIT=	GTK2 GTK3
+ OPTIONS_DEFAULT=BUNDLED_CAIRO CANBERRA ENIGMAIL GTK2 LIGHTNING
+ 
+ .include "${.CURDIR}/../../www/firefox/Makefile.options"
++.include "${.CURDIR}/Makefile.op"
+ .include <bsd.port.pre.mk>
+ 
+ WRKSRC:=	${WRKDIR}/${PORTNAME}-${DISTVERSION}
+diff --git a/mail/thunderbird/Makefile.op b/mail/thunderbird/Makefile.op
+new file mode 100644
+index 0000000..8fc4f20
+--- /dev/null
++++ b/mail/thunderbird/Makefile.op
+@@ -0,0 +1,14 @@
++OPTIONS_DEFINE+=	NOCRAP
++OPTIONS_DEFAULT+=	NOCRAP
++
++NOCRAP_DESC?=		Disable unneeded extensions
++
++# disable unneeded audio support....
++#.if ${PORT_OPTIONS:MNOCRAP}
++OPTIONS_MULTI_AUDIO:=${OPTIONS_MULTI_AUDIO:S/ALSA//}
++OPTIONS_MULTI_AUDIO:=${OPTIONS_MULTI_AUDIO:S/PULSE//}
++OPTIONS_MULTI_AUDIO:=${OPTIONS_MULTI_AUDIO:S/OSS//}
++OPTIONS_MULTI:=${OPTIONS_MULTI:S/AUDIO//}
++#.endif
++
++#MOZ_OPTIONS+=
+diff --git a/mail/thunderbird/files/patch-mail_installer_package-manifest.in b/mail/thunderbird/files/patch-mail_installer_package-manifest.in
+new file mode 100644
+index 0000000..5e9d93c
+--- /dev/null
++++ b/mail/thunderbird/files/patch-mail_installer_package-manifest.in
+@@ -0,0 +1,22 @@
++--- mail/installer/package-manifest.in.orig	2016-04-28 01:06:31.185558000 +0200
+++++ mail/installer/package-manifest.in	2016-04-28 01:06:40.337261000 +0200
++@@ -423,7 +423,9 @@
++ @RESPATH@/components/dom_stylesheets.xpt
++ @RESPATH@/components/dom_traversal.xpt
++ @RESPATH@/components/dom_tv.xpt
+++#ifdef MOZ_WEBSPEECH
++ @RESPATH@/components/dom_webspeechrecognition.xpt
+++#endif
++ @RESPATH@/components/dom_xbl.xpt
++ @RESPATH@/components/dom_xpath.xpt
++ @RESPATH@/components/dom_xul.xpt
++@@ -679,7 +681,9 @@
++ @RESPATH@/components/PeerConnection.js
++ @RESPATH@/components/PeerConnection.manifest
++ #endif
+++#ifdef MOZ_WEBSPEECH
++ @RESPATH@/components/dom_webspeechsynth.xpt
+++#endif
++ @RESPATH@/components/nsAsyncShutdown.manifest
++ @RESPATH@/components/nsAsyncShutdown.js
++ 
+diff --git a/multimedia/vlc/Makefile b/multimedia/vlc/Makefile
+index 8d5c610..3ba4b21 100644
+--- a/multimedia/vlc/Makefile
++++ b/multimedia/vlc/Makefile
+@@ -16,10 +16,11 @@ COMMENT?=	Qt based multimedia player and streaming server
+ LICENSE=	GPLv2
+ 
+ LIB_DEPENDS=	libgcrypt.so:security/libgcrypt \
+-		libdvbpsi.so:multimedia/libdvbpsi \
+ 		libfontconfig.so:x11-fonts/fontconfig \
+ 		libfreetype.so:print/freetype2 \
+ 		libidn.so:dns/libidn
++#		libdvbpsi.so:multimedia/libdvbpsi \
++
+ BUILD_DEPENDS=	ffmpeg>=2.0:multimedia/ffmpeg \
+ 		yasm:devel/yasm
+ RUN_DEPENDS=	ffmpeg>=2.0:multimedia/ffmpeg
+@@ -33,7 +34,7 @@ INSTALL_TARGET=	install-strip
+ CONFLICTS?=	vlc-qt4-*
+ 
+ GNU_CONFIGURE=	yes
+-CONFIGURE_ARGS=	--enable-avcodec --enable-avformat --enable-dvbpsi \
++CONFIGURE_ARGS=	--enable-avcodec --enable-avformat --disable-dvbpsi \
+ 		--enable-fontconfig --enable-freetype --enable-libgcrypt \
+ 		--enable-libxml2 --enable-oss --enable-postproc \
+ 		--enable-swscale --enable-vlc \
+diff --git a/www/firefox-esr/Makefile b/www/firefox-esr/Makefile
+index 95b8e92..a1a09e3 100644
+--- a/www/firefox-esr/Makefile
++++ b/www/firefox-esr/Makefile
+@@ -16,7 +16,6 @@ COMMENT=	Web browser based on the browser portion of Mozilla
+ BUILD_DEPENDS=	nspr>=4.12:devel/nspr \
+ 		nss>=3.21.1:security/nss \
+ 		libevent2>=2.0.21_2:devel/libevent2 \
+-		soundtouch>=1.9.0:audio/soundtouch \
+ 		harfbuzz>=1.1.0:print/harfbuzz \
+ 		graphite2>=1.3.6:graphics/graphite2 \
+ 		png>=1.6.19:graphics/png \
+@@ -24,19 +23,21 @@ BUILD_DEPENDS=	nspr>=4.12:devel/nspr \
+ 		libvpx>=1.5.0:multimedia/libvpx \
+ 		sqlite3>=3.9.1:databases/sqlite3 \
+ 		${PYTHON_PKGNAMEPREFIX}sqlite3>0:databases/py-sqlite3 \
+-		v4l_compat>0:multimedia/v4l_compat \
+ 		autoconf-2.13:devel/autoconf213 \
+ 		yasm:devel/yasm \
+ 		zip:archivers/zip \
+ 		unzip:archivers/unzip
++#		soundtouch>=1.9.0:audio/soundtouch \
++#		v4l_compat>0:multimedia/v4l_compat \
++#		opus>=1.1:audio/opus \
+ 
+-LIB_DEPENDS=	libv4l2.so:multimedia/libv4l
++#LIB_DEPENDS=	libv4l2.so:multimedia/libv4l
+ 
+ USE_GECKO=	gecko
+ CPE_PRODUCT=	${PORTNAME}_esr
+ CONFLICTS_INSTALL=	firefox-[0-9]*
+ MOZ_PKGCONFIG_FILES=	# empty
+-USE_MOZILLA=	# empty
++USE_MOZILLA=	-opus -cairo -soundtouch
+ MOZILLA_NAME=	Firefox
+ 
+ USE_QT5=	# empty
+@@ -58,6 +59,7 @@ OPTIONS_SINGLE+=	TOOLKIT
+ OPTIONS_SINGLE_TOOLKIT=	GTK2 GTK3
+ 
+ .include "${.CURDIR}/../../www/firefox/Makefile.options"
++.include "${.CURDIR}/Makefile.op"
+ 
+ WRKSRC:=	${WRKDIR}/${PORTNAME}-${DISTVERSION}esr
+ 
+diff --git a/www/firefox-esr/Makefile.op b/www/firefox-esr/Makefile.op
+new file mode 100644
+index 0000000..a7ba38d
+--- /dev/null
++++ b/www/firefox-esr/Makefile.op
+@@ -0,0 +1,28 @@
++OPTIONS_DEFINE+=	NOCRAP
++OPTIONS_DEFAULT+=	NOCRAP
++
++NOCRAP_DESC?=		Disable unneeded extensions
++
++# disable unneeded audio support....
++#.if ${PORT_OPTIONS:MNOCRAP}
++OPTIONS_MULTI_AUDIO:=${OPTIONS_MULTI_AUDIO:S/ALSA//}
++OPTIONS_MULTI_AUDIO:=${OPTIONS_MULTI_AUDIO:S/PULSE//}
++OPTIONS_MULTI_AUDIO:=${OPTIONS_MULTI_AUDIO:S/OSS//}
++OPTIONS_MULTI:=${OPTIONS_MULTI:S/AUDIO//}
++#.endif
++
++MOZ_OPTIONS+=	--disable-websms-backend \
++		--disable-crashreporter \
++		--disable-webapp-runtime \
++		--disable-parental-controls \
++		--disable-necko-wifi \
++		--disable-gamepad \
++		--disable-mozril-geoloc \
++		--disable-synth-speechd \
++		--disable-webrtc \
++		--disable-webspeech \
++		--disable-pulseaudio \
++		--disable-webapp-runtime \
++		--disable-mozril-geoloc
++
++
